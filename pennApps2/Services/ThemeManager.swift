@@ -20,23 +20,47 @@ class ThemeManager: ObservableObject {
     
     // Theme colors
     var primaryColor: Color {
-        isPoopMode ? Color.brown : Color.blue
+        isPoopMode ? Color(red: 0.6, green: 0.4, blue: 0.2) : Color.blue
     }
     
     var backgroundColor: Color {
-        isPoopMode ? Color.brown.opacity(0.1) : Color(.systemGroupedBackground)
+        isPoopMode ? Color(red: 0.98, green: 0.95, blue: 0.9) : Color(.systemGroupedBackground)
     }
     
     var cardBackgroundColor: Color {
-        isPoopMode ? Color.brown.opacity(0.2) : Color(.systemBackground)
+        isPoopMode ? Color(red: 0.95, green: 0.9, blue: 0.85) : Color(.systemBackground)
     }
     
     var textColor: Color {
-        isPoopMode ? Color.brown : Color.primary
+        isPoopMode ? Color(red: 0.4, green: 0.25, blue: 0.1) : Color.primary
     }
     
     var secondaryTextColor: Color {
-        isPoopMode ? Color.brown.opacity(0.7) : Color.secondary
+        isPoopMode ? Color(red: 0.5, green: 0.35, blue: 0.2) : Color.secondary
+    }
+    
+    // Poop-themed gradients
+    var poopGradient: LinearGradient {
+        LinearGradient(
+            gradient: Gradient(colors: [
+                Color(red: 0.8, green: 0.6, blue: 0.3),
+                Color(red: 0.6, green: 0.4, blue: 0.2),
+                Color(red: 0.4, green: 0.25, blue: 0.1)
+            ]),
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+    
+    var cardGradient: LinearGradient {
+        LinearGradient(
+            gradient: Gradient(colors: [
+                Color(red: 0.98, green: 0.95, blue: 0.9),
+                Color(red: 0.95, green: 0.9, blue: 0.85)
+            ]),
+            startPoint: .top,
+            endPoint: .bottom
+        )
     }
     
     // Get brown intensity based on cleanliness rating
@@ -58,4 +82,3 @@ class ThemeManager: ObservableObject {
         return Color.brown.opacity(0.8 + (intensity * 0.2))
     }
 }
-

@@ -18,6 +18,17 @@ struct MapTabView: View {
     @State private var searchText = ""
     @State private var selectedCategory: Freebie.Category? = nil
     @State private var showingFilters = false
+    
+    // Annotation data structure
+    struct MapAnnotationItem: Identifiable {
+        let id = UUID()
+        let coordinate: CLLocationCoordinate2D
+        let isUserLocation: Bool
+        let freebie: Freebie?
+    }
+    
+    // State variable for annotations to prevent flickering
+    @State private var allAnnotations: [MapAnnotationItem] = []
     @State private var showingAddFreebie = false
     @State private var searchRadius: Double = 5.0 // in miles
     @State private var customRadiusText = ""
@@ -66,36 +77,90 @@ struct MapTabView: View {
         return filtered
     }
     
+    // Function to update annotations when data changes
+    func updateAnnotations() {
+        var annotations: [MapAnnotationItem] = []
+        
+        // Add user location annotation
+        if let userLocation = locationService.currentLocation {
+            annotations.append(MapAnnotationItem(
+                coordinate: userLocation.coordinate,
+                isUserLocation: true,
+                freebie: nil
+            ))
+        }
+        
+        // Add freebie annotations
+        for freebie in filteredFreebies {
+            annotations.append(MapAnnotationItem(
+                coordinate: CLLocationCoordinate2D(
+                    latitude: freebie.location.latitude,
+                    longitude: freebie.location.longitude
+                ),
+                isUserLocation: false,
+                freebie: freebie
+            ))
+        }
+        
+        allAnnotations = annotations
+    }
+    
     var body: some View {
         ZStack {
-            // Map with real data from Firestore
-            Map(initialPosition: .region(region)) {
-                // User location marker
-                if let userLocation = locationService.currentLocation {
-                    Annotation("Your Location", coordinate: userLocation.coordinate) {
-                        UserLocationMarker()
+            // Poop-themed background pattern
+            if themeManager.isPoopMode {
+                VStack {
+                    ForEach(0..<12, id: \.self) { _ in
+                        HStack {
+                            ForEach(0..<8, id: \.self) { _ in
+                                Text("💩")
+                                    .font(.system(size: 8))
+                                    .opacity(0.03)
+                                    .rotationEffect(.degrees(Double.random(in: -15...15)))
+                                    .offset(
+                                        x: Double.random(in: -5...5),
+                                        y: Double.random(in: -5...5)
+                                    )
+                                Spacer()
+                            }
+                        }
+                        Spacer()
                     }
                 }
-                
-                // Freebie markers
-                ForEach(filteredFreebies) { freebie in
-                    Annotation(freebie.title, coordinate: CLLocationCoordinate2D(
-                        latitude: freebie.location.latitude,
-                        longitude: freebie.location.longitude
-                    )) {
-                        CustomMapPin(freebie: freebie) {
-                            print("📌 Pin tapped for freebie: \(freebie.title) (ID: \(freebie.id ?? "nil"))")
+                .allowsHitTesting(false)
+                .background(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Color(red: 0.98, green: 0.95, blue: 0.9),
+                            Color(red: 0.95, green: 0.9, blue: 0.85)
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .ignoresSafeArea()
+                )
+            }
+            
+            // Map with real data from Firestore
+            Map(coordinateRegion: $region, annotationItems: allAnnotations) { annotation in
+                MapAnnotation(coordinate: annotation.coordinate) {
+                    if annotation.isUserLocation {
+                        UserLocationMarker()
+                    } else {
+                        CustomMapPin(freebie: annotation.freebie!) {
+                            print("📌 Pin tapped for freebie: \(annotation.freebie!.title) (ID: \(annotation.freebie!.id ?? "nil"))")
                             
                             // Set selectedFreebie - this will automatically show the sheet
-                            selectedFreebie = freebie
+                            selectedFreebie = annotation.freebie!
                             
-                            print("📌 Set selectedFreebie to: \(freebie.title) - sheet will show automatically")
+                            print("📌 Set selectedFreebie to: \(annotation.freebie!.title) - sheet will show automatically")
                         }
                     }
                 }
             }
             .mapStyle(.standard(elevation: .realistic))
             .ignoresSafeArea()
+            .mapControlVisibility(.hidden)
                 .onAppear {
                     print("🗺️ MapTabView appeared - starting location setup")
                     observeCoordinateUpdates()
@@ -109,6 +174,9 @@ struct MapTabView: View {
                     
                     // Fetch freebies
                     firestoreService.fetchFreebies()
+                    
+                    // Update annotations
+                    updateAnnotations()
                     
                     // Check if we already have a location
                     if let userLocation = locationService.currentLocation {
@@ -131,76 +199,101 @@ struct MapTabView: View {
                 for (index, freebie) in newValue.enumerated() {
                     print("   \(index + 1). '\(freebie.title)' at \(freebie.location.latitude), \(freebie.location.longitude)")
                 }
+                updateAnnotations()
+            }
+            .onChange(of: searchText) { oldValue, newValue in
+                updateAnnotations()
+            }
+            .onChange(of: selectedCategory) { oldValue, newValue in
+                updateAnnotations()
+            }
+            .onChange(of: searchRadius) { oldValue, newValue in
+                updateAnnotations()
+            }
+            .onChange(of: themeManager.isPoopMode) { oldValue, newValue in
+                updateAnnotations()
             }
             
-            // Top overlay with gradient background
+            // Minimal glassmorphism header
             VStack(spacing: 0) {
+                // Subtle gradient overlay
                 LinearGradient(
-                    colors: [Color.black.opacity(0.3), Color.clear],
+                    colors: [Color.black.opacity(0.1), Color.clear],
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                .frame(height: 120)
+                .frame(height: 100)
                 .ignoresSafeArea(edges: .top)
                 
                 Spacer()
             }
             
             // Minimal Search and Filter UI
-            VStack(spacing: 20) {
-                // Clean header
+            VStack(spacing: 16) {
+                // Clean, minimal header
                 HStack {
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text("Free Near Me")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
+                            .font(.title3)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
                         
-                        Text("\(filteredFreebies.count) freebies nearby")
+                        Text("\(filteredFreebies.count) nearby")
                             .font(.caption)
-                            .foregroundColor(.white.opacity(0.7))
+                            .foregroundColor(.secondary)
                     }
                     
                     Spacer()
+                    
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 12)
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
                 
-                // Minimal search bar
+                // Modern search bar with glassmorphism
                 HStack(spacing: 12) {
                     HStack(spacing: 12) {
                         Image(systemName: "magnifyingglass")
-                            .foregroundColor(.gray)
-                            .font(.system(size: 16))
+                            .foregroundColor(.secondary)
+                            .font(.system(size: 16, weight: .medium))
                         
                         TextField("Search freebies...", text: $searchText)
-                            .font(.system(size: 16))
+                            .font(.system(size: 16, weight: .medium))
                             .textFieldStyle(PlainTextFieldStyle())
                         
                         if !searchText.isEmpty {
-                            Button(action: { searchText = "" }) {
+                            Button(action: { 
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    searchText = "" 
+                                }
+                            }) {
                                 Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(.gray)
+                                    .foregroundColor(.secondary)
                                     .font(.system(size: 14))
                             }
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(Color.white)
-                    .cornerRadius(20)
-                    .shadow(color: .black.opacity(0.1), radius: 6, x: 0, y: 3)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(.ultraThinMaterial)
+                            .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 5)
+                    )
                     
-                    // Minimal filter button
-                    Button(action: { showingFilters.toggle() }) {
-                        Image(systemName: "slider.horizontal.3")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.white)
+                    // Modern filter toggle
+                    Button(action: { 
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                            showingFilters.toggle() 
+                        }
+                    }) {
+                        Image(systemName: showingFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundColor(showingFilters ? .blue : .primary)
                             .frame(width: 40, height: 40)
                             .background(
                                 Circle()
-                                    .fill(Color.black.opacity(0.7))
-                                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                                    .fill(.ultraThinMaterial)
+                                    .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
                             )
                             .overlay(
                                 Group {
@@ -326,64 +419,82 @@ struct MapTabView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             
-            // Clean floating action buttons
+            // Minimal floating action buttons
             VStack {
                 Spacer()
                 
                 HStack {
                     Spacer()
                     
-                    // Right side: Add freebie button (bottom right)
-                    VStack(spacing: 16) {
-                        // Refresh button
-                        Button(action: refreshData) {
+                    // Right side: Minimal floating buttons
+                    VStack(spacing: 12) {
+                        // Refresh button with glassmorphism
+                        Button(action: {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                refreshData()
+                            }
+                        }) {
                             Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(.white)
-                                .frame(width: 44, height: 44)
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.primary)
+                                .frame(width: 48, height: 48)
                                 .background(
                                     Circle()
-                                        .fill(Color.black.opacity(0.7))
-                                        .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                                        .fill(.ultraThinMaterial)
+                                        .shadow(color: .black.opacity(0.1), radius: 12, x: 0, y: 6)
+                                )
+                                .overlay(
+                                    Circle()
+                                        .stroke(.white.opacity(0.2), lineWidth: 1)
                                 )
                         }
                         .buttonStyle(PlainButtonStyle())
                         
-                        // Poop mode toggle button
+                        // Poop mode toggle with emoji
                         Button(action: {
-                            themeManager.togglePoopMode()
-                        }) {
-                            VStack(spacing: 4) {
-                                Image(systemName: themeManager.isPoopMode ? "eye.slash.fill" : "eye.fill")
-                                    .font(.system(size: 18, weight: .medium))
-                                    .foregroundColor(.white)
-                                
-                                Text(themeManager.isPoopMode ? "Normal" : "Poop")
-                                    .font(.caption2)
-                                    .fontWeight(.semibold)
-                                    .foregroundColor(.white)
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                themeManager.togglePoopMode()
                             }
-                            .frame(width: 56, height: 56)
-                            .background(
-                                Circle()
-                                    .fill(themeManager.isPoopMode ? Color.brown : Color.orange)
-                                    .shadow(color: .black.opacity(0.3), radius: 6, x: 0, y: 3)
-                            )
+                        }) {
+                            Text(themeManager.isPoopMode ? "💩" : "👁️")
+                                .font(.system(size: 20, weight: .semibold))
+                                .frame(width: 48, height: 48)
+                                .background(
+                                    Circle()
+                                        .fill(.ultraThinMaterial)
+                                        .shadow(color: .black.opacity(0.1), radius: 12, x: 0, y: 6)
+                                )
+                                .overlay(
+                                    Circle()
+                                        .stroke(.white.opacity(0.2), lineWidth: 1)
+                                )
                         }
                         .buttonStyle(PlainButtonStyle())
                         
-                        // Add freebie button
+                        // Minimal add freebie button
                         Button(action: {
-                            showingAddFreebie = true
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                showingAddFreebie = true
+                            }
                         }) {
                             Image(systemName: "plus")
-                                .font(.system(size: 24, weight: .medium))
+                                .font(.system(size: 20, weight: .bold))
                                 .foregroundColor(.white)
                                 .frame(width: 56, height: 56)
                                 .background(
                                     Circle()
-                                        .fill(Color.blue)
-                                        .shadow(color: .black.opacity(0.3), radius: 6, x: 0, y: 3)
+                                        .fill(
+                                            LinearGradient(
+                                                gradient: Gradient(colors: [Color.blue, Color.blue.opacity(0.8)]),
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+                                        .shadow(color: .blue.opacity(0.3), radius: 12, x: 0, y: 6)
+                                )
+                                .overlay(
+                                    Circle()
+                                        .stroke(.white.opacity(0.3), lineWidth: 1)
                                 )
                         }
                         .buttonStyle(PlainButtonStyle())
@@ -394,20 +505,28 @@ struct MapTabView: View {
             }
             
             
-            // Left side: Location button (bottom left)
+            // Left side: Minimal location button
             VStack {
                 Spacer()
                 
                 HStack {
-                    Button(action: centerOnUserLocation) {
+                    Button(action: {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                            centerOnUserLocation()
+                        }
+                    }) {
                         Image(systemName: "location.fill")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(.white)
-                            .frame(width: 44, height: 44)
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(.primary)
+                            .frame(width: 48, height: 48)
                             .background(
                                 Circle()
-                                    .fill(Color.black.opacity(0.7))
-                                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                                    .fill(.ultraThinMaterial)
+                                    .shadow(color: .black.opacity(0.1), radius: 12, x: 0, y: 6)
+                            )
+                            .overlay(
+                                Circle()
+                                    .stroke(.white.opacity(0.2), lineWidth: 1)
                             )
                     }
                     .buttonStyle(PlainButtonStyle())
@@ -418,23 +537,28 @@ struct MapTabView: View {
                 .padding(.bottom, 100)
             }
             
-            // Loading indicator
+            // Minimal loading indicator
             if firestoreService.isLoading {
                 VStack {
                     Spacer()
                     HStack {
                         Spacer()
-                        VStack(spacing: 12) {
+                        VStack(spacing: 8) {
                             ProgressView()
-                                .scaleEffect(1.2)
+                                .scaleEffect(1.0)
                                 .tint(.blue)
-                            Text("Loading freebies...")
+                            Text("Loading...")
                                 .font(.caption)
-                                .foregroundColor(.white)
+                                .fontWeight(.medium)
+                                .foregroundColor(.secondary)
                         }
-                        .padding(20)
-                        .background(Color.black.opacity(0.7))
-                        .cornerRadius(15)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(.ultraThinMaterial)
+                                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
+                        )
                         .padding(.bottom, 200)
                         Spacer()
                     }
@@ -503,6 +627,7 @@ struct MapTabView: View {
                 print("📍 Centering map on user location...")
                 
                 centerMapOnLocation(coordinates)
+                updateAnnotations()
                 
                 print("📍 Map centered at: \(coordinates.latitude), \(coordinates.longitude)")
             }
@@ -906,6 +1031,8 @@ struct RoundedCorner: Shape {
 
 struct PoopVisualization: View {
     let cleanlinessRating: Double
+    @State private var isAnimating = false
+    @State private var rotationAngle: Double = 0
     
     private var poopCount: Int {
         // More poop = dirtier bathroom (inverse of cleanliness)
@@ -915,28 +1042,76 @@ struct PoopVisualization: View {
     
     private var poopColor: Color {
         if cleanlinessRating <= 3 {
-            return .brown
+            return Color(red: 0.6, green: 0.3, blue: 0.1) // Dark brown for dirty
         } else if cleanlinessRating <= 6 {
-            return .orange
+            return Color(red: 0.8, green: 0.5, blue: 0.2) // Medium brown for average
         } else {
-            return .yellow
+            return Color(red: 0.2, green: 0.7, blue: 0.3) // Green for clean
+        }
+    }
+    
+    private var glowColor: Color {
+        if cleanlinessRating <= 3 {
+            return Color(red: 0.8, green: 0.4, blue: 0.2) // Brown glow for dirty
+        } else if cleanlinessRating <= 6 {
+            return Color(red: 0.9, green: 0.6, blue: 0.3) // Orange glow for average
+        } else {
+            return Color(red: 0.3, green: 0.9, blue: 0.4) // Green glow for clean
         }
     }
     
     var body: some View {
-        VStack(spacing: 2) {
-            ForEach(0..<poopCount, id: \.self) { index in
-                Text("💩")
-                    .font(.system(size: CGFloat(12 - (index * 2))))
-                    .opacity(0.8 - (Double(index) * 0.1))
+        ZStack {
+            // Glow effect
+            Circle()
+                .fill(glowColor.opacity(0.4))
+                .frame(width: 40, height: 40)
+                .blur(radius: 8)
+                .scaleEffect(isAnimating ? 1.2 : 1.0)
+                .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: isAnimating)
+            
+            // Main circle
+            Circle()
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            poopColor.opacity(0.8),
+                            poopColor.opacity(0.4)
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 30, height: 30)
+                .overlay(
+                    Circle()
+                        .stroke(poopColor.opacity(0.6), lineWidth: 2)
+                )
+                .shadow(color: poopColor.opacity(0.5), radius: 4, x: 0, y: 2)
+            
+            // Poop emojis
+            VStack(spacing: 1) {
+                ForEach(0..<poopCount, id: \.self) { index in
+                    Text("💩")
+                        .font(.system(size: CGFloat(10.0 - (Double(index) * 1.5))))
+                        .opacity(0.9 - (Double(index) * 0.15))
+                        .scaleEffect(isAnimating ? 1.1 : 1.0)
+                        .rotationEffect(.degrees(rotationAngle + Double(index * 10)))
+                        .animation(
+                            .easeInOut(duration: 1.5)
+                            .delay(Double(index) * 0.2)
+                            .repeatForever(autoreverses: true),
+                            value: isAnimating
+                        )
+                }
             }
         }
-        .frame(width: 30, height: 30)
-        .background(
-            Circle()
-                .fill(poopColor.opacity(0.3))
-                .shadow(radius: 3)
-        )
+        .onAppear {
+            isAnimating = true
+            withAnimation(.linear(duration: 10.0).repeatForever(autoreverses: false)) {
+                rotationAngle = 360
+            }
+        }
     }
 }
 

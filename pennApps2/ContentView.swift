@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct ContentView: View {
+    @StateObject private var themeManager = ThemeManager.shared
+    
     var body: some View {
         TabView {
             MapTabView()
@@ -22,25 +24,13 @@ struct ContentView: View {
                     Text("Feed")
                 }
             
-            // Placeholder for Profile tab
-            VStack {
-                Image(systemName: "person")
-                    .imageScale(.large)
-                    .foregroundStyle(.tint)
-                Text("Profile Coming Soon!")
-                    .font(.headline)
-                Text("This will show your posts and settings")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            .padding()
-            .tabItem {
-                Image(systemName: "person")
-                Text("Profile")
-            }
+            ProfileView()
+                .tabItem {
+                    Image(systemName: "person")
+                    Text("Profile")
+                }
         }
-        .accentColor(.blue)
+        .accentColor(themeManager.primaryColor)
     }
 }
 

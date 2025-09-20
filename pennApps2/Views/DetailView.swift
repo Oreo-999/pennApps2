@@ -17,29 +17,13 @@ struct DetailView: View {
     @State private var newReviewText = ""
     @State private var isSubmittingReview = false
     @State private var isUpvoting = false
-    
-    private func getCleanlinessDescription(for rating: Double) -> String {
-        switch rating {
-        case 1...2:
-            return "💩💩💩 Very dirty! Proceed with caution!"
-        case 3...4:
-            return "💩💩 Pretty dirty, might want to find another option"
-        case 5...6:
-            return "💩 Average cleanliness, usable but not great"
-        case 7...8:
-            return "✨ Pretty clean, should be fine to use"
-        case 9...10:
-            return "✨✨✨ Very clean! Highly recommended!"
-        default:
-            return "No rating available"
-        }
-    }
+    @State private var hasUserReviewed = false
     
     var body: some View {
         NavigationView {
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    // Parallax image header
+                VStack(alignment: .leading, spacing: 24) {
+                    // Minimal image header
                     if freebie.photoURL.hasPrefix("data:image") {
                         // Base64 image
                         if let data = Data(base64Encoded: freebie.photoURL.components(separatedBy: ",").last ?? ""),
@@ -47,8 +31,9 @@ struct DetailView: View {
                             Image(uiImage: uiImage)
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
-                                .frame(height: 300)
+                                .frame(height: 250)
                                 .clipped()
+                                .cornerRadius(16, corners: [.bottomLeft, .bottomRight])
                         } else {
                             placeholderImage
                         }
@@ -61,60 +46,75 @@ struct DetailView: View {
                         } placeholder: {
                             placeholderImage
                         }
-                        .frame(height: 300)
+                        .frame(height: 250)
                         .clipped()
+                        .cornerRadius(16, corners: [.bottomLeft, .bottomRight])
                     }
                     
-                    VStack(alignment: .leading, spacing: 16) {
-                        // Title and category
+                    VStack(alignment: .leading, spacing: 20) {
+                        // Clean title and category
                         HStack {
-                            Text(freebie.category.emoji)
-                                .font(.title)
-                            
-                            Text(freebie.category.rawValue.capitalized)
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(Color(freebie.category.color))
-                                .cornerRadius(12)
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(freebie.title)
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.primary)
+                                
+                                HStack(spacing: 8) {
+                                    Text(freebie.category.emoji)
+                                        .font(.title3)
+                                    
+                                    Text(freebie.category.rawValue.capitalized)
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.secondary)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .fill(Color(freebie.category.color).opacity(0.2))
+                                        )
+                                }
+                            }
                             
                             Spacer()
                         }
                         
-                        Text(freebie.title)
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
-                        
-                        // Rating and upvotes with interactive buttons
-                        HStack(spacing: 24) {
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack(spacing: 4) {
+                        // Minimal rating and interaction section
+                        HStack(spacing: 20) {
+                            // Rating section
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(spacing: 6) {
                                     ForEach(0..<5) { index in
                                         Image(systemName: index < Int(freebie.averageRating.rounded()) ? "star.fill" : "star")
                                             .foregroundColor(.yellow)
+                                            .font(.system(size: 14))
                                     }
-                                    Text("(\(freebie.reviewCount) reviews)")
-                                        .font(.subheadline)
-                                        .foregroundColor(.gray)
+                                    Text("(\(freebie.reviewCount))")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
                                 }
                                 
-                                Button("Write Review") {
-                                    showingReviewSheet = true
+                                Button(action: { showingReviewSheet = true }) {
+                                    Text("Write Review")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.blue)
                                 }
-                                .font(.caption)
-                                .foregroundColor(.blue)
                             }
                             
-                            VStack(alignment: .leading, spacing: 4) {
+                            Spacer()
+                            
+                            // Upvote section
+                            VStack(alignment: .trailing, spacing: 6) {
                                 Button(action: upvoteFreebie) {
-                                    HStack(spacing: 4) {
+                                    HStack(spacing: 6) {
                                         Image(systemName: hasUpvoted ? "heart.fill" : "heart")
-                                            .foregroundColor(hasUpvoted ? .red : .gray)
-                                        Text("\(freebie.upvotes) upvotes")
+                                            .foregroundColor(hasUpvoted ? .red : .secondary)
+                                            .font(.system(size: 16))
+                                        Text("\(freebie.upvotes)")
                                             .font(.subheadline)
-                                            .fontWeight(.medium)
+                                            .fontWeight(.semibold)
                                             .foregroundColor(hasUpvoted ? .red : .primary)
                                     }
                                 }
@@ -122,11 +122,11 @@ struct DetailView: View {
                                 
                                 if isUpvoting {
                                     ProgressView()
-                                        .scaleEffect(0.8)
+                                        .scaleEffect(0.7)
                                 } else if !upvoteChecked {
                                     ProgressView()
-                                        .scaleEffect(0.6)
-                                        .foregroundColor(.gray)
+                                        .scaleEffect(0.5)
+                                        .foregroundColor(.secondary)
                                 } else if hasUpvoted {
                                     Text("You upvoted this!")
                                         .font(.caption2)
@@ -147,52 +147,154 @@ struct DetailView: View {
                         // Reviews section or Poop Score for bathrooms
                         if freebie.category == .bathroom {
                             // Poop Score section for bathrooms
-                            VStack(alignment: .leading, spacing: 16) {
+                            VStack(alignment: .leading, spacing: 20) {
+                                // Header with dramatic styling
                                 HStack {
-                                    Text("Poop Score")
-                                        .font(.headline)
-                                        .fontWeight(.semibold)
-                                        .foregroundColor(themeManager.getBrownText(for: freebie.cleanlinessRating))
+                                    Text("💩")
+                                        .font(.title)
+                                    
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("POOP SCORE")
+                                            .font(.headline)
+                                            .fontWeight(.black)
+                                            .foregroundColor(themeManager.getBrownText(for: freebie.cleanlinessRating))
+                                            .tracking(2)
+                                        
+                                        Text("Bathroom Cleanliness Rating")
+                                            .font(.caption)
+                                            .foregroundColor(themeManager.secondaryTextColor)
+                                    }
                                     
                                     Spacer()
                                 }
                                 
                                 if let cleanlinessRating = freebie.cleanlinessRating {
-                                    VStack(spacing: 12) {
-                                        // Poop visualization
-                                        PoopVisualization(cleanlinessRating: cleanlinessRating)
-                                            .scaleEffect(2.0)
-                                        
-                                        // Score display
-                                        HStack {
-                                            Text("Cleanliness Rating:")
-                                                .font(.subheadline)
-                                                .foregroundColor(themeManager.getBrownText(for: freebie.cleanlinessRating))
+                                    // Main score card with dramatic styling
+                                    VStack(spacing: 20) {
+                                        // Large poop visualization with glow
+                                        ZStack {
+                                            // Outer glow
+                                            Circle()
+                                                .fill(themeManager.getBrownBackground(for: freebie.cleanlinessRating))
+                                                .frame(width: 140, height: 140)
+                                                .blur(radius: 20)
                                             
-                                            Spacer()
-                                            
-                                            Text("\(Int(cleanlinessRating))/10")
-                                                .font(.title2)
-                                                .fontWeight(.bold)
-                                                .foregroundColor(themeManager.getBrownText(for: freebie.cleanlinessRating))
+                                            // Main visualization
+                                            PoopVisualization(cleanlinessRating: cleanlinessRating)
+                                                .scaleEffect(3.0)
+                                                .frame(width: 100, height: 100)
+                                                .background(
+                                                    Circle()
+                                                        .fill(Color.white)
+                                                        .shadow(color: themeManager.primaryColor.opacity(0.5), radius: 15, x: 0, y: 8)
+                                                )
                                         }
                                         
-                                        // Description
+                                        // Score display with dramatic styling
+                                        VStack(spacing: 12) {
+                                            Text("CLEANLINESS RATING")
+                                                .font(.caption)
+                                                .fontWeight(.heavy)
+                                                .foregroundColor(themeManager.secondaryTextColor)
+                                                .tracking(2)
+                                            
+                                            HStack(spacing: 8) {
+                                                Text("\(Int(cleanlinessRating))")
+                                                    .font(.system(size: 48, weight: .black, design: .rounded))
+                                                    .foregroundColor(themeManager.primaryColor)
+                                                
+                                                Text("/10")
+                                                    .font(.title2)
+                                                    .fontWeight(.bold)
+                                                    .foregroundColor(themeManager.secondaryTextColor)
+                                            }
+                                            
+                                            // Progress bar
+                                            VStack(spacing: 8) {
+                                                HStack {
+                                                    Text("💩 DIRTY")
+                                                        .font(.caption2)
+                                                        .fontWeight(.bold)
+                                                        .foregroundColor(themeManager.primaryColor)
+                                                    
+                                                    Spacer()
+                                                    
+                                                    Text("✨ CLEAN")
+                                                        .font(.caption2)
+                                                        .fontWeight(.bold)
+                                                        .foregroundColor(themeManager.primaryColor)
+                                                }
+                                                
+                                                GeometryReader { geometry in
+                                                    ZStack(alignment: .leading) {
+                                                        // Background track
+                                                        RoundedRectangle(cornerRadius: 8)
+                                                            .fill(themeManager.getBrownBackground(for: freebie.cleanlinessRating))
+                                                            .frame(height: 16)
+                                                        
+                                                        // Progress fill with gradient
+                                                        RoundedRectangle(cornerRadius: 8)
+                                                            .fill(
+                                                                LinearGradient(
+                                                                    gradient: Gradient(colors: [
+                                                                        Color(red: 0.6, green: 0.3, blue: 0.1),
+                                                                        Color(red: 0.8, green: 0.5, blue: 0.2),
+                                                                        Color(red: 0.9, green: 0.7, blue: 0.4)
+                                                                    ]),
+                                                                    startPoint: .leading,
+                                                                    endPoint: .trailing
+                                                                )
+                                                            )
+                                                            .frame(width: geometry.size.width * (cleanlinessRating / 10), height: 16)
+                                                    }
+                                                }
+                                                .frame(height: 16)
+                                            }
+                                        }
+                                        
+                                        // Description with fun styling
                                         Text(getCleanlinessDescription(for: cleanlinessRating))
                                             .font(.body)
-                                            .foregroundColor(themeManager.getBrownText(for: freebie.cleanlinessRating))
+                                            .fontWeight(.medium)
+                                            .foregroundColor(themeManager.textColor)
                                             .multilineTextAlignment(.center)
+                                            .padding(.horizontal, 8)
                                     }
-                                    .padding()
+                                    .padding(24)
                                     .background(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .fill(themeManager.getBrownBackground(for: freebie.cleanlinessRating))
+                                        RoundedRectangle(cornerRadius: 20)
+                                            .fill(themeManager.cardGradient)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 20)
+                                                    .stroke(themeManager.primaryColor.opacity(0.3), lineWidth: 2)
+                                            )
+                                            .shadow(color: themeManager.primaryColor.opacity(0.2), radius: 15, x: 0, y: 8)
                                     )
                                 } else {
-                                    Text("No cleanliness rating available")
-                                        .font(.body)
-                                        .foregroundColor(.gray)
-                                        .italic()
+                                    // No rating available
+                                    VStack(spacing: 16) {
+                                        Text("❓")
+                                            .font(.system(size: 60))
+                                        
+                                        Text("No Cleanliness Rating")
+                                            .font(.headline)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(themeManager.primaryColor)
+                                        
+                                        Text("This bathroom hasn't been rated yet. Be the first to rate it!")
+                                            .font(.body)
+                                            .foregroundColor(themeManager.secondaryTextColor)
+                                            .multilineTextAlignment(.center)
+                                    }
+                                    .padding(24)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 20)
+                                            .fill(themeManager.cardBackgroundColor)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 20)
+                                                    .stroke(themeManager.primaryColor.opacity(0.3), lineWidth: 2)
+                                            )
+                                    )
                                 }
                             }
                         } else {
@@ -204,11 +306,18 @@ struct DetailView: View {
                                 
                                 Spacer()
                                 
-                                Button("Add Review") {
-                                    showingReviewSheet = true
+                                if !hasUserReviewed {
+                                    Button("Add Review") {
+                                        showingReviewSheet = true
+                                    }
+                                    .font(.caption)
+                                    .foregroundColor(.blue)
+                                } else {
+                                    Text("Reviewed")
+                                        .font(.caption)
+                                        .foregroundColor(.green)
+                                        .fontWeight(.medium)
                                 }
-                                .font(.caption)
-                                .foregroundColor(.blue)
                             }
                             
                             if reviews.isEmpty {
@@ -261,15 +370,33 @@ struct DetailView: View {
             loadReviews()
             checkUpvoteStatus()
         }
+        .onChange(of: reviews) { _ in
+            checkReviewStatus()
+        }
         .sheet(isPresented: $showingReviewSheet) {
-            ReviewSheet(freebieId: freebie.id ?? "", rating: $newRating, reviewText: $newReviewText, isSubmitting: $isSubmittingReview) {
-                submitReview()
-            }
+            ReviewSheetView(rating: $newRating, reviewText: $newReviewText, isSubmitting: $isSubmittingReview, onSubmit: submitReview)
         }
         .sheet(isPresented: $showingReportSheet) {
             ReportSheet(freebieId: freebie.id ?? "") {
                 // Report submitted
             }
+        }
+    }
+    
+    private func getCleanlinessDescription(for rating: Double) -> String {
+        switch rating {
+        case 1...2:
+            return "💩💩💩 Very dirty! Proceed with caution!"
+        case 3...4:
+            return "💩💩 Pretty dirty, might want to find another option"
+        case 5...6:
+            return "💩 Average cleanliness, usable but not great"
+        case 7...8:
+            return "✨ Pretty clean, should be fine to use"
+        case 9...10:
+            return "✨✨✨ Very clean! Highly recommended!"
+        default:
+            return "No rating available"
         }
     }
     
@@ -388,6 +515,59 @@ struct DetailView: View {
             }
     }
     
+    private func checkReviewStatus() {
+        hasUserReviewed = reviews.contains { review in
+            review.reviewerId == deviceService.deviceId
+        }
+    }
+    
+    private func submitReview() {
+        guard let freebieId = freebie.id else {
+            print("❌ No freebie ID available for review")
+            return
+        }
+        
+        print("📝 Starting review submission for freebie: \(freebieId)")
+        print("📝 Rating: \(newRating), Text: '\(newReviewText)'")
+        
+        isSubmittingReview = true
+        
+        let review = Review(
+            freebieId: freebieId,
+            rating: newRating,
+            reviewText: newReviewText,
+            reviewerId: deviceService.deviceId
+        )
+        
+        print("📝 Review object created:")
+        print("   - freebieId: \(freebieId)")
+        print("   - rating: \(newRating)")
+        print("   - reviewText: '\(newReviewText)'")
+        print("   - reviewerId: \(deviceService.deviceId)")
+        
+        firestoreService.addReview(review) { success, error in
+            DispatchQueue.main.async {
+                self.isSubmittingReview = false
+                
+                if success {
+                    print("✅ Review submitted successfully for freebie \(freebieId)")
+                    self.newRating = 5.0
+                    self.newReviewText = ""
+                    
+                    // Increment user's total reviews counter
+                    let totalReviewsKey = "totalReviews_\(self.deviceService.deviceId)"
+                    let currentTotal = UserDefaults.standard.integer(forKey: totalReviewsKey)
+                    UserDefaults.standard.set(currentTotal + 1, forKey: totalReviewsKey)
+                    
+                    self.loadReviews() // Reload reviews to show the new one
+                    self.showingReviewSheet = false
+                } else {
+                    print("❌ Error submitting review for freebie \(freebieId): \(error ?? "Unknown error")")
+                }
+            }
+        }
+    }
+    
     private func upvoteFreebie() {
         guard !hasUpvoted else { 
             print("⚠️ Already upvoted this freebie")
@@ -421,6 +601,11 @@ struct DetailView: View {
                         let upvoteKey = "upvoted_\(freebieId)_\(self.deviceService.deviceId)"
                         UserDefaults.standard.set(true, forKey: upvoteKey)
                         
+                        // Increment user's total upvotes counter
+                        let totalUpvotesKey = "totalUpvotes_\(self.deviceService.deviceId)"
+                        let currentTotal = UserDefaults.standard.integer(forKey: totalUpvotesKey)
+                        UserDefaults.standard.set(currentTotal + 1, forKey: totalUpvotesKey)
+                        
                         // Also track this upvote in a separate collection to prevent duplicates
                         self.trackUpvote(freebieId: freebieId)
                         
@@ -447,48 +632,6 @@ struct DetailView: View {
         }
     }
     
-    private func submitReview() {
-        guard let freebieId = freebie.id else {
-            print("❌ No freebie ID available for review")
-            return
-        }
-        
-        print("📝 Starting review submission for freebie: \(freebieId)")
-        print("📝 Rating: \(newRating), Text: '\(newReviewText)'")
-        
-        isSubmittingReview = true
-        
-        let review = Review(
-            freebieId: freebieId,
-            rating: newRating,
-            reviewText: newReviewText,
-            reviewerId: deviceService.deviceId
-        )
-        
-        print("📝 Review object created:")
-        print("   - freebieId: \(freebieId)")
-        print("   - rating: \(newRating)")
-        print("   - reviewText: '\(newReviewText)'")
-        print("   - reviewerId: \(deviceService.deviceId)")
-        
-        print("📝 Created review object, calling FirestoreService...")
-        
-        firestoreService.addReview(review) { success, error in
-            DispatchQueue.main.async {
-                self.isSubmittingReview = false
-                
-                if success {
-                    print("✅ Review submitted successfully for freebie \(freebieId)")
-                    self.showingReviewSheet = false
-                    self.newRating = 5.0
-                    self.newReviewText = ""
-                    self.loadReviews() // Reload reviews
-                } else {
-                    print("❌ Error submitting review for freebie \(freebieId): \(error ?? "Unknown error")")
-                }
-            }
-        }
-    }
 }
 
 struct ReviewCard: View {
@@ -690,6 +833,102 @@ struct ReportSheet: View {
                     dismiss()
                 } else {
                     print("❌ Error submitting report: \(error ?? "Unknown error")")
+                }
+            }
+        }
+    }
+}
+
+struct ReviewSheetView: View {
+    @Binding var rating: Double
+    @Binding var reviewText: String
+    @Binding var isSubmitting: Bool
+    let onSubmit: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var themeManager = ThemeManager.shared
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                // Rating section
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Rating")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(themeManager.textColor)
+                    
+                    HStack {
+                        Text("1")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        
+                        Slider(value: $rating, in: 1...5, step: 1)
+                            .accentColor(themeManager.primaryColor)
+                        
+                        Text("5")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    HStack {
+                        ForEach(1...5, id: \.self) { star in
+                            Image(systemName: star <= Int(rating) ? "star.fill" : "star")
+                                .foregroundColor(.yellow)
+                                .font(.title2)
+                        }
+                        Spacer()
+                        Text("\(Int(rating)) stars")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                // Review text section
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Review")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(themeManager.textColor)
+                    
+                    TextField("Write your review here...", text: $reviewText, axis: .vertical)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .lineLimit(5...10)
+                }
+                
+                Spacer()
+                
+                // Submit button
+                Button(action: {
+                    onSubmit()
+                }) {
+                    HStack {
+                        if isSubmitting {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                .scaleEffect(0.8)
+                        } else {
+                            Image(systemName: "star.fill")
+                        }
+                        Text(isSubmitting ? "Submitting..." : "Submit Review")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .background(themeManager.primaryColor)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
+                }
+                .disabled(isSubmitting || reviewText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .opacity(isSubmitting || reviewText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.6 : 1.0)
+            }
+            .padding()
+            .background(themeManager.backgroundColor)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
                 }
             }
         }

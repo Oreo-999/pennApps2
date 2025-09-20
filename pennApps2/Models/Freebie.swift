@@ -16,7 +16,7 @@ struct Freebie: Identifiable, Codable, Equatable {
     var averageRating: Double
     var reviewCount: Int
     var isActive: Bool
-    var cleanlinessRating: Double? // 1-10 for bathrooms only
+    var cleanlinessRating: Double? // For bathroom category only
     
     enum Category: String, CaseIterable, Codable, Equatable {
         case food = "food"

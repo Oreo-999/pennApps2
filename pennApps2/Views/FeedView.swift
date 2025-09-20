@@ -62,92 +62,131 @@ struct FeedView: View {
         NavigationView {
             ZStack {
                 // Background
-                Color(.systemGroupedBackground)
-                    .ignoresSafeArea()
+                if themeManager.isPoopMode {
+                    // Poop-themed background
+                    ZStack {
+                        LinearGradient(
+                            gradient: Gradient(colors: [
+                                Color(red: 0.98, green: 0.95, blue: 0.9),
+                                Color(red: 0.95, green: 0.9, blue: 0.85)
+                            ]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                        .ignoresSafeArea()
+                        
+                        // Subtle poop pattern
+                        VStack {
+                            ForEach(0..<15, id: \.self) { _ in
+                                HStack {
+                                    ForEach(0..<6, id: \.self) { _ in
+                                        Text("💩")
+                                            .font(.system(size: 6))
+                                            .opacity(0.02)
+                                            .rotationEffect(.degrees(Double.random(in: -20...20)))
+                                            .offset(
+                                                x: Double.random(in: -3...3),
+                                                y: Double.random(in: -3...3)
+                                            )
+                                        Spacer()
+                                    }
+                                }
+                                Spacer()
+                            }
+                        }
+                        .allowsHitTesting(false)
+                    }
+                } else {
+                    Color(.systemGroupedBackground)
+                        .ignoresSafeArea()
+                }
                 
                 VStack(spacing: 0) {
                     // Header with search and filter
                     VStack(spacing: 16) {
-                        // Title and count
+                        // Clean title and count
                         HStack {
-                            VStack(alignment: .leading, spacing: 2) {
+                            VStack(alignment: .leading, spacing: 4) {
                                 Text("Free Near Me")
-                                    .font(.title2)
-                                    .fontWeight(.bold)
+                                    .font(.title3)
+                                    .fontWeight(.semibold)
                                     .foregroundColor(.primary)
                                 
-                                Text("\(filteredAndSortedFreebies.count) freebies nearby")
+                                Text("\(filteredAndSortedFreebies.count) nearby")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
                             
                             Spacer()
                             
-                            // Poop mode toggle
+                            // Poop mode toggle with emoji
                             Button(action: {
-                                themeManager.togglePoopMode()
-                            }) {
-                                VStack(spacing: 2) {
-                                    Image(systemName: themeManager.isPoopMode ? "eye.slash.fill" : "eye.fill")
-                                        .font(.system(size: 16, weight: .medium))
-                                        .foregroundColor(.white)
-                                    
-                                    Text(themeManager.isPoopMode ? "Normal" : "Poop")
-                                        .font(.caption2)
-                                        .fontWeight(.semibold)
-                                        .foregroundColor(.white)
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                    themeManager.togglePoopMode()
                                 }
-                                .frame(width: 50, height: 50)
-                                .background(
-                                    Circle()
-                                        .fill(themeManager.isPoopMode ? Color.brown : Color.orange)
-                                        .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
-                                )
+                            }) {
+                                Text(themeManager.isPoopMode ? "💩" : "👁️")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .frame(width: 40, height: 40)
+                                    .background(
+                                        Circle()
+                                            .fill(.ultraThinMaterial)
+                                            .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+                                    )
                             }
                             .buttonStyle(PlainButtonStyle())
                         }
                         
-                        // Search bar
+                        // Modern search bar
                         HStack(spacing: 12) {
                             HStack(spacing: 12) {
                                 Image(systemName: "magnifyingglass")
-                                    .foregroundColor(.gray)
-                                    .font(.system(size: 16))
+                                    .foregroundColor(.secondary)
+                                    .font(.system(size: 16, weight: .medium))
                                 
                                 TextField("Search freebies...", text: $searchText)
-                                    .font(.system(size: 16))
+                                    .font(.system(size: 16, weight: .medium))
                                     .textFieldStyle(PlainTextFieldStyle())
                                 
                                 if !searchText.isEmpty {
-                                    Button(action: { searchText = "" }) {
+                                    Button(action: { 
+                                        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                            searchText = "" 
+                                        }
+                                    }) {
                                         Image(systemName: "xmark.circle.fill")
-                                            .foregroundColor(.gray)
-                                            .font(.system(size: 16))
+                                            .foregroundColor(.secondary)
+                                            .font(.system(size: 14))
                                     }
                                 }
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-                            .background(Color(.systemBackground))
-                            .cornerRadius(20)
-                            .shadow(color: .black.opacity(0.1), radius: 6, x: 0, y: 3)
+                            .padding(.horizontal, 18)
+                            .padding(.vertical, 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(.ultraThinMaterial)
+                                    .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 5)
+                            )
                             
-                            // Filter button
-                            Button(action: { showingFilters.toggle() }) {
-                                Image(systemName: "slider.horizontal.3")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(.white)
+                            // Modern filter toggle
+                            Button(action: { 
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                    showingFilters.toggle() 
+                                }
+                            }) {
+                                Image(systemName: showingFilters ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                                    .font(.system(size: 20, weight: .medium))
                                     .frame(width: 40, height: 40)
                                     .background(
                                         Circle()
-                                            .fill(Color.blue)
-                                            .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                                            .fill(.ultraThinMaterial)
+                                            .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
                                     )
                                     .overlay(
                                         Group {
                                             if selectedCategory != nil {
                                                 Circle()
-                                                    .fill(Color.red)
+                                                    .fill(Color.blue)
                                                     .frame(width: 8, height: 8)
                                                     .offset(x: 12, y: -12)
                                             }
@@ -284,7 +323,10 @@ struct FeedView: View {
                         ScrollView {
                             LazyVStack(spacing: 16) {
                                 ForEach(filteredAndSortedFreebies) { freebie in
-                                    FreebieCard(freebie: freebie, userLocation: locationService.currentLocation)
+                                    NavigationLink(destination: DetailView(freebie: freebie)) {
+                                        FreebieCard(freebie: freebie, userLocation: locationService.currentLocation)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
                                 }
                             }
                             .padding(.horizontal, 20)
@@ -308,6 +350,14 @@ struct FreebieCard: View {
     let freebie: Freebie
     let userLocation: CLLocation?
     @StateObject private var themeManager = ThemeManager.shared
+    
+    private var cardBackground: LinearGradient {
+        if themeManager.isPoopMode {
+            return themeManager.cardGradient
+        } else {
+            return LinearGradient(gradient: Gradient(colors: [Color(.systemBackground)]), startPoint: .top, endPoint: .bottom)
+        }
+    }
     
     private var distance: String {
         guard let userLocation = userLocation else {
@@ -458,9 +508,15 @@ struct FreebieCard: View {
             }
             .padding(16)
         }
-        .background(Color(.systemBackground))
-        .cornerRadius(16)
-        .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 4)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(cardBackground)
+                .shadow(color: themeManager.isPoopMode ? themeManager.primaryColor.opacity(0.2) : .black.opacity(0.1), radius: 8, x: 0, y: 4)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(themeManager.isPoopMode ? themeManager.primaryColor.opacity(0.2) : Color.clear, lineWidth: 1)
+        )
     }
     
     private var placeholderImage: some View {
