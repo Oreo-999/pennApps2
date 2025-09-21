@@ -18,6 +18,40 @@ struct MapTabView: View {
     @State private var searchText = ""
     @State private var selectedCategory: Freebie.Category? = nil
     @State private var showingFilters = false
+    @State private var showingPoopModePopup = false
+    @State private var poopModeMessage = ""
+    
+    // Funny poop mode messages
+    private let poopModeMessages = [
+        "💩 Poop Mode Activated! 💩",
+        "🚽 Time to find the throne! 👑",
+        "🧻 Emergency bathroom locator ON! 🚨",
+        "💩 Your poop radar is now active! 📡",
+        "🚽 Bathroom hunter mode: ENGAGED! 🎯",
+        "💩 The brown alert has been sounded! 🚨",
+        "🚽 All systems go for bathroom finding! 🚀",
+        "💩 Poop mode: Because nature calls! 📞",
+        "🚽 Your personal bathroom GPS is online! 🛰️",
+        "💩 The hunt for clean toilets begins! 🔍",
+        "🚽 Bathroom mode: Maximum efficiency! ⚡",
+        "💩 Poop detector: FULLY OPERATIONAL! 🤖"
+    ]
+    
+    // Funny poop mode OFF messages
+    private let poopModeOffMessages = [
+        "👁️ Poop Mode Deactivated! 👁️",
+        "🚽 Mission accomplished! 🎉",
+        "🧻 Bathroom locator: STAND BY 🛑",
+        "💩 Your poop radar is now offline! 📡",
+        "🚽 Bathroom hunter mode: DISENGAGED! 🎯",
+        "💩 The brown alert has been cleared! 🚨",
+        "🚽 All systems returning to normal! 🚀",
+        "💩 Poop mode: Mission complete! 📞",
+        "🚽 Your personal bathroom GPS is offline! 🛰️",
+        "💩 The hunt for clean toilets has ended! 🔍",
+        "🚽 Bathroom mode: STANDING DOWN! ⚡",
+        "💩 Poop detector: RETURNING TO BASE! 🤖"
+    ]
     
     // Annotation data structure
     struct MapAnnotationItem: Identifiable {
@@ -452,11 +486,20 @@ struct MapTabView: View {
                         
                         // Poop mode toggle with emoji
                         Button(action: {
+                            let wasInPoopMode = themeManager.isPoopMode
+                            
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                                 themeManager.togglePoopMode()
+                                
+                                // Show appropriate popup message
+                                if themeManager.isPoopMode {
+                                    showPoopModePopup()
+                                } else {
+                                    showPoopModeOffPopup()
+                                }
                             }
                         }) {
-                            Text(themeManager.isPoopMode ? "💩" : "👁️")
+                            Text(themeManager.isPoopMode ? "👁️" : "💩")
                                 .font(.system(size: 20, weight: .semibold))
                                 .frame(width: 48, height: 48)
                                 .background(
@@ -501,7 +544,7 @@ struct MapTabView: View {
                     }
                 }
                 .padding(.trailing, 20)
-                .padding(.bottom, 100)
+                .padding(.bottom, 40)
             }
             
             
@@ -517,16 +560,22 @@ struct MapTabView: View {
                     }) {
                         Image(systemName: "location.fill")
                             .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(.primary)
+                            .foregroundColor(.white)
                             .frame(width: 48, height: 48)
                             .background(
                                 Circle()
-                                    .fill(.ultraThinMaterial)
-                                    .shadow(color: .black.opacity(0.1), radius: 12, x: 0, y: 6)
+                                    .fill(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [Color.red, Color.red.opacity(0.8)]),
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .shadow(color: .red.opacity(0.3), radius: 12, x: 0, y: 6)
                             )
                             .overlay(
                                 Circle()
-                                    .stroke(.white.opacity(0.2), lineWidth: 1)
+                                    .stroke(.white.opacity(0.3), lineWidth: 1)
                             )
                     }
                     .buttonStyle(PlainButtonStyle())
@@ -534,7 +583,7 @@ struct MapTabView: View {
                     Spacer()
                 }
                 .padding(.leading, 20)
-                .padding(.bottom, 100)
+                .padding(.bottom, 40)
             }
             
             // Minimal loading indicator
@@ -614,6 +663,51 @@ struct MapTabView: View {
         .sheet(isPresented: $showingAddFreebie) {
             AddFreebieView()
         }
+        .overlay(
+            // Poop mode popup
+            Group {
+                if showingPoopModePopup {
+                    VStack {
+                        Spacer()
+                        
+                        HStack {
+                            Spacer()
+                            
+                            Text(poopModeMessage)
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.white)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 16)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .fill(
+                                            LinearGradient(
+                                                gradient: Gradient(colors: [Color.brown, Color.brown.opacity(0.8)]),
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            )
+                                        )
+                                        .shadow(color: .black.opacity(0.3), radius: 20, x: 0, y: 10)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 20)
+                                        .stroke(.white.opacity(0.3), lineWidth: 2)
+                                )
+                            
+                            Spacer()
+                        }
+                        
+                        Spacer()
+                            .frame(height: 120)
+                    }
+                    .transition(.asymmetric(
+                        insertion: .scale.combined(with: .opacity),
+                        removal: .scale.combined(with: .opacity)
+                    ))
+                }
+            }
+        )
     }
     
     func observeCoordinateUpdates() {
@@ -646,6 +740,40 @@ struct MapTabView: View {
     func refreshData() {
         print("🔄 Refresh button tapped - refreshing database")
         firestoreService.fetchFreebies()
+    }
+    
+    func showPoopModePopup() {
+        // Select a random funny message
+        poopModeMessage = poopModeMessages.randomElement() ?? poopModeMessages[0]
+        
+        // Show the popup with animation
+        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+            showingPoopModePopup = true
+        }
+        
+        // Hide the popup after 3 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                showingPoopModePopup = false
+            }
+        }
+    }
+    
+    func showPoopModeOffPopup() {
+        // Select a random funny message for turning off
+        poopModeMessage = poopModeOffMessages.randomElement() ?? poopModeOffMessages[0]
+        
+        // Show the popup with animation
+        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+            showingPoopModePopup = true
+        }
+        
+        // Hide the popup after 3 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                showingPoopModePopup = false
+            }
+        }
     }
     
     func centerOnUserLocation() {
