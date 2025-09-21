@@ -726,15 +726,15 @@ struct CustomMapPin: View {
                 // Pin shadow
                 Circle()
                     .fill(Color.black.opacity(0.2))
-                    .frame(width: 30, height: 15)
-                    .offset(y: 10)
+                    .frame(width: 20, height: 10)
+                    .offset(y: 8)
                 
                 // Main pin
                 ZStack {
                     // Outer glow
                     Circle()
                         .fill(Color(freebie.category.color).opacity(0.3))
-                        .frame(width: 70, height: 70)
+                        .frame(width: 45, height: 45)
                         .scaleEffect(isAnimating ? 1.2 : 1.0)
                         .opacity(isAnimating ? 0.0 : 0.6)
                     
@@ -747,8 +747,8 @@ struct CustomMapPin: View {
                                 endPoint: .bottomTrailing
                             )
                         )
-                        .frame(width: 60, height: 60)
-                        .shadow(color: .black.opacity(0.3), radius: 12, x: 0, y: 6)
+                        .frame(width: 38, height: 38)
+                        .shadow(color: .black.opacity(0.3), radius: 8, x: 0, y: 4)
                     
                     // Category emoji or poop visualization
                     if themeManager.isPoopMode && freebie.category == .bathroom {
@@ -756,7 +756,7 @@ struct CustomMapPin: View {
                             .scaleEffect(isPressed ? 0.9 : 1.0)
                     } else {
                         Text(freebie.category.emoji)
-                            .font(.title2)
+                            .font(.title3)
                             .scaleEffect(isPressed ? 0.9 : 1.0)
                     }
                     
@@ -778,8 +778,8 @@ struct CustomMapPin: View {
                                             endPoint: .bottomTrailing
                                         )
                                     )
-                                    .cornerRadius(10)
-                                    .offset(x: 8, y: -8)
+                                    .cornerRadius(8)
+                                    .offset(x: 6, y: -6)
                             }
                             Spacer()
                         }
@@ -796,7 +796,7 @@ struct CustomMapPin: View {
                                         .foregroundColor(.yellow)
                                 }
                             }
-                            .offset(y: 8)
+                            .offset(y: 6)
                         }
                     }
                 }

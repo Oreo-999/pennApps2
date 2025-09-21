@@ -1,5 +1,6 @@
 import SwiftUI
 import FirebaseFirestore
+import MapKit
 
 struct DetailView: View {
     let freebie: Freebie
@@ -357,11 +358,27 @@ struct DetailView: View {
                     }
                 }
                 
+                ToolbarItem(placement: .principal) {
+                    EmptyView()
+                }
+                
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Report") {
                         showingReportSheet = true
                     }
                     .foregroundColor(.red)
+                }
+                
+                ToolbarItem(placement: .primaryAction) {
+                    Button(action: openInMaps) {
+                        VStack(spacing: 2) {
+                            Image(systemName: "location.fill")
+                                .font(.system(size: 16, weight: .medium))
+                            Text("Navigate")
+                                .font(.caption2)
+                                .fontWeight(.medium)
+                        }
+                    }
                 }
             }
         }
@@ -414,6 +431,22 @@ struct DetailView: View {
                         .foregroundColor(.gray)
                 }
             )
+    }
+    
+    private func openInMaps() {
+        let coordinate = CLLocationCoordinate2D(
+            latitude: freebie.location.latitude,
+            longitude: freebie.location.longitude
+        )
+        
+        let mapItem = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
+        mapItem.name = freebie.title
+        
+        let launchOptions = [
+            MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving
+        ]
+        
+        mapItem.openInMaps(launchOptions: launchOptions)
     }
     
     private func loadReviews() {
