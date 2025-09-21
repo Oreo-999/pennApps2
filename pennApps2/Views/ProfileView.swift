@@ -10,13 +10,45 @@ struct ProfileView: View {
     @State private var showingPrivacyPolicy = false
     @State private var showingTermsOfService = false
     @State private var showingDeleteAccount = false
+    @State private var showingAchievements = false
     @State private var userStats = UserStats()
+    @State private var userLevel = 1
+    @State private var userXP = 0
+    @State private var achievements: [Achievement] = []
+    @State private var completedAchievements: Set<String> = []
     
     struct UserStats {
         var postedFreebies: Int = 0
         var totalUpvotes: Int = 0
         var totalReviews: Int = 0
         var bathroomsRated: Int = 0
+    }
+    
+    struct Achievement: Identifiable {
+        let id = UUID()
+        let title: String
+        let description: String
+        let emoji: String
+        let xpReward: Int
+        let isCompleted: Bool
+        let progress: Int
+        let maxProgress: Int
+    }
+    
+    // Computed properties for gamification
+    private var xpNeededForNextLevel: Int {
+        userLevel * 100 // Each level requires level * 100 XP
+    }
+    
+    private var userTitle: String {
+        switch userLevel {
+        case 1...2: return "Freebie Newbie"
+        case 3...5: return "Freebie Explorer"
+        case 6...10: return "Freebie Hunter"
+        case 11...15: return "Freebie Master"
+        case 16...20: return "Freebie Legend"
+        default: return "Freebie God"
+        }
     }
     
     var body: some View {
@@ -28,10 +60,66 @@ struct ProfileView: View {
                 
                 ScrollView {
                     VStack(spacing: 24) {
-                        // Profile header
+                        // Gamified Profile header
                         VStack(spacing: 16) {
-                            // Avatar
+                            // Level and XP display
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Level \(userLevel)")
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                        .foregroundColor(.primary)
+                                    
+                                    Text("\(userXP) XP")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                
+                                Spacer()
+                                
+                                Button(action: { showingAchievements = true }) {
+                                    Text("🏆")
+                                        .font(.title2)
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                            
+                            // XP Progress Bar
+                            VStack(spacing: 8) {
+                                HStack {
+                                    Text("Next Level")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    
+                                    Spacer()
+                                    
+                                    Text("\(userXP)/\(xpNeededForNextLevel) XP")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.blue)
+                                }
+                                
+                                ProgressView(value: Double(userXP), total: Double(xpNeededForNextLevel))
+                                    .progressViewStyle(LinearProgressViewStyle(tint: .blue))
+                                    .scaleEffect(y: 2)
+                            }
+                            .padding(.horizontal, 20)
+                            
+                            // Avatar with level ring
                             ZStack {
+                                // Level ring
+                                Circle()
+                                    .stroke(
+                                        LinearGradient(
+                                            gradient: Gradient(colors: [Color.blue, Color.purple]),
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        lineWidth: 4
+                                    )
+                                    .frame(width: 90, height: 90)
+                                
+                                // Avatar
                                 Circle()
                                     .fill(
                                         LinearGradient(
@@ -46,9 +134,9 @@ struct ProfileView: View {
                                     .font(.system(size: 32))
                             }
                             
-                            // User info
+                            // User info with title
                             VStack(spacing: 4) {
-                                Text("Freebie Finder")
+                                Text(userTitle)
                                     .font(.title2)
                                     .fontWeight(.bold)
                                     .foregroundColor(.primary)
@@ -76,6 +164,34 @@ struct ProfileView: View {
                             }
                         }
                         .padding(.horizontal, 20)
+                        .padding(.top, 20)
+                        
+                        // Quick Achievements Preview
+                        VStack(spacing: 16) {
+                            HStack {
+                                Text("Recent Achievements")
+                                    .font(.headline)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.primary)
+                                
+                                Spacer()
+                                
+                                Button("View All") {
+                                    showingAchievements = true
+                                }
+                                .font(.caption)
+                                .foregroundColor(.blue)
+                            }
+                            
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 12) {
+                                    ForEach(achievements.prefix(5)) { achievement in
+                                        AchievementCard(achievement: achievement)
+                                    }
+                                }
+                                .padding(.horizontal, 20)
+                            }
+                        }
                         .padding(.top, 20)
                         
                         // Settings section
@@ -118,9 +234,14 @@ struct ProfileView: View {
         } message: {
             Text("This will permanently delete all your posted freebies, reviews, and account data. This action cannot be undone.")
         }
+        .sheet(isPresented: $showingAchievements) {
+            AchievementsSheet(achievements: achievements, userLevel: userLevel, userXP: userXP)
+        }
         .onAppear {
             firestoreService.fetchFreebies()
             calculateUserStats()
+            initializeAchievements()
+            calculateLevelAndXP()
         }
         .onChange(of: firestoreService.freebies) { _ in
             calculateUserStats()
@@ -145,6 +266,101 @@ struct ProfileView: View {
         
         // Calculate total reviews from UserDefaults
         userStats.totalReviews = UserDefaults.standard.integer(forKey: "totalReviews_\(deviceId)")
+    }
+    
+    private func initializeAchievements() {
+        achievements = [
+            Achievement(
+                title: "First Post",
+                description: "Post your first freebie",
+                emoji: "🎯",
+                xpReward: 50,
+                isCompleted: userStats.postedFreebies >= 1,
+                progress: min(userStats.postedFreebies, 1),
+                maxProgress: 1
+            ),
+            Achievement(
+                title: "Freebie Hunter",
+                description: "Post 5 freebies",
+                emoji: "🏹",
+                xpReward: 100,
+                isCompleted: userStats.postedFreebies >= 5,
+                progress: min(userStats.postedFreebies, 5),
+                maxProgress: 5
+            ),
+            Achievement(
+                title: "Community Helper",
+                description: "Post 10 freebies",
+                emoji: "🌟",
+                xpReward: 200,
+                isCompleted: userStats.postedFreebies >= 10,
+                progress: min(userStats.postedFreebies, 10),
+                maxProgress: 10
+            ),
+            Achievement(
+                title: "Review Master",
+                description: "Write 5 reviews",
+                emoji: "⭐",
+                xpReward: 75,
+                isCompleted: userStats.totalReviews >= 5,
+                progress: min(userStats.totalReviews, 5),
+                maxProgress: 5
+            ),
+            Achievement(
+                title: "Bathroom Critic",
+                description: "Rate 3 bathrooms",
+                emoji: "🚽",
+                xpReward: 100,
+                isCompleted: userStats.bathroomsRated >= 3,
+                progress: min(userStats.bathroomsRated, 3),
+                maxProgress: 3
+            ),
+            Achievement(
+                title: "Popular Poster",
+                description: "Get 10 upvotes",
+                emoji: "❤️",
+                xpReward: 150,
+                isCompleted: userStats.totalUpvotes >= 10,
+                progress: min(userStats.totalUpvotes, 10),
+                maxProgress: 10
+            ),
+            Achievement(
+                title: "Viral Sensation",
+                description: "Get 50 upvotes",
+                emoji: "🔥",
+                xpReward: 300,
+                isCompleted: userStats.totalUpvotes >= 50,
+                progress: min(userStats.totalUpvotes, 50),
+                maxProgress: 50
+            ),
+            Achievement(
+                title: "Poop Mode Pro",
+                description: "Use poop mode 10 times",
+                emoji: "💩",
+                xpReward: 100,
+                isCompleted: UserDefaults.standard.integer(forKey: "poopModeUsage_\(deviceService.deviceId)") >= 10,
+                progress: min(UserDefaults.standard.integer(forKey: "poopModeUsage_\(deviceService.deviceId)"), 10),
+                maxProgress: 10
+            )
+        ]
+    }
+    
+    private func calculateLevelAndXP() {
+        let totalXP = achievements.filter { $0.isCompleted }.reduce(0) { $0 + $1.xpReward }
+        userXP = totalXP
+        
+        // Calculate level based on XP
+        var level = 1
+        var xpForLevel = 100
+        var remainingXP = totalXP
+        
+        while remainingXP >= xpForLevel {
+            remainingXP -= xpForLevel
+            level += 1
+            xpForLevel = level * 100
+        }
+        
+        userLevel = level
     }
 }
 
@@ -476,6 +692,166 @@ struct PolicySection: View {
     }
 }
 
+// Achievement Card Component
+struct AchievementCard: View {
+    let achievement: ProfileView.Achievement
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                Circle()
+                    .fill(achievement.isCompleted ? Color.green : Color.gray.opacity(0.3))
+                    .frame(width: 50, height: 50)
+                
+                Text(achievement.emoji)
+                    .font(.title2)
+            }
+            
+            VStack(spacing: 2) {
+                Text(achievement.title)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                    .multilineTextAlignment(.center)
+                
+                if !achievement.isCompleted {
+                    Text("\(achievement.progress)/\(achievement.maxProgress)")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text("✓")
+                        .font(.caption2)
+                        .foregroundColor(.green)
+                }
+            }
+        }
+        .frame(width: 80)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(achievement.isCompleted ? Color.green.opacity(0.1) : Color.clear)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(achievement.isCompleted ? Color.green : Color.gray.opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+}
+
+// Achievements Sheet
+struct AchievementsSheet: View {
+    let achievements: [ProfileView.Achievement]
+    let userLevel: Int
+    let userXP: Int
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Header
+                    VStack(spacing: 16) {
+                        Text("🏆")
+                            .font(.system(size: 60))
+                        
+                        VStack(spacing: 8) {
+                            Text("Level \(userLevel)")
+                                .font(.title)
+                                .fontWeight(.bold)
+                            
+                            Text("\(userXP) Total XP")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.top, 20)
+                    
+                    // Achievements Grid
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 2), spacing: 16) {
+                        ForEach(achievements) { achievement in
+                            AchievementDetailCard(achievement: achievement)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                }
+                .padding(.bottom, 40)
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle("Achievements")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Detailed Achievement Card
+struct AchievementDetailCard: View {
+    let achievement: ProfileView.Achievement
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(achievement.isCompleted ? Color.green : Color.gray.opacity(0.3))
+                    .frame(width: 60, height: 60)
+                
+                Text(achievement.emoji)
+                    .font(.title)
+            }
+            
+            VStack(spacing: 8) {
+                Text(achievement.title)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                    .multilineTextAlignment(.center)
+                
+                Text(achievement.description)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                
+                if !achievement.isCompleted {
+                    ProgressView(value: Double(achievement.progress), total: Double(achievement.maxProgress))
+                        .progressViewStyle(LinearProgressViewStyle(tint: .blue))
+                        .scaleEffect(y: 2)
+                    
+                    Text("\(achievement.progress)/\(achievement.maxProgress)")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                } else {
+                    HStack(spacing: 4) {
+                        Text("✓ Completed")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(.green)
+                        
+                        Text("+\(achievement.xpReward) XP")
+                            .font(.caption)
+                            .fontWeight(.bold)
+                            .foregroundColor(.blue)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(achievement.isCompleted ? Color.green.opacity(0.1) : Color(.systemBackground))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(achievement.isCompleted ? Color.green : Color.gray.opacity(0.3), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
+        )
+    }
+}
 
 #Preview {
     ProfileView()
