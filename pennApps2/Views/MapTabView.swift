@@ -139,6 +139,70 @@ struct MapTabView: View {
         allAnnotations = annotations
     }
     
+    var baseMap: some View {
+        Map(coordinateRegion: $region, annotationItems: allAnnotations) { annotation in
+            MapAnnotation(coordinate: annotation.coordinate) {
+                if annotation.isUserLocation {
+                    UserLocationMarker()
+                } else {
+                    CustomMapPin(freebie: annotation.freebie!) {
+                        print("📌 Pin tapped for freebie: \(annotation.freebie!.title) (ID: \(annotation.freebie!.id ?? "nil"))")
+                        selectedFreebie = annotation.freebie!
+                        print("📌 Set selectedFreebie to: \(annotation.freebie!.title) - sheet will show automatically")
+                    }
+                }
+            }
+        }
+        .mapStyle(.standard(elevation: .realistic))
+        .ignoresSafeArea()
+        .mapControlVisibility(.hidden)
+    }
+    
+    var mapView: some View {
+        baseMap
+            .onAppear {
+                print("🗺️ MapTabView appeared - starting location setup")
+                observeCoordinateUpdates()
+                observeDeniedLocationAccess()
+                locationService.requestLocationPermission()
+                locationService.startLocationUpdates()
+                firestoreService.fetchFreebies()
+                updateAnnotations()
+                
+                if let userLocation = locationService.currentLocation {
+                    print("📍 Found existing location: \(userLocation.coordinate.latitude), \(userLocation.coordinate.longitude)")
+                    centerMapOnLocation(userLocation.coordinate)
+                } else {
+                    print("📍 No existing location available, waiting for location updates...")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        if let userLocation = locationService.currentLocation {
+                            print("📍 Found delayed location: \(userLocation.coordinate.latitude), \(userLocation.coordinate.longitude)")
+                            centerMapOnLocation(userLocation.coordinate)
+                        }
+                    }
+                }
+            }
+            .onChange(of: firestoreService.freebies) { _, newValue in
+                print("🗺️ MapTabView: Freebies updated to \(newValue.count)")
+                for (index, freebie) in newValue.enumerated() {
+                    print("   \(index + 1). '\(freebie.title)' at \(freebie.location.latitude), \(freebie.location.longitude)")
+                }
+                updateAnnotations()
+            }
+            .onChange(of: searchText) { _, _ in
+                updateAnnotations()
+            }
+            .onChange(of: selectedCategory) { _, _ in
+                updateAnnotations()
+            }
+            .onChange(of: searchRadius) { _, _ in
+                updateAnnotations()
+            }
+            .onChange(of: themeManager.isPoopMode) { _, _ in
+                updateAnnotations()
+            }
+    }
+    
     var body: some View {
         ZStack {
             // Poop-themed background pattern
@@ -176,77 +240,7 @@ struct MapTabView: View {
             }
             
             // Map with real data from Firestore
-            Map(coordinateRegion: $region, annotationItems: allAnnotations) { annotation in
-                MapAnnotation(coordinate: annotation.coordinate) {
-                    if annotation.isUserLocation {
-                        UserLocationMarker()
-                    } else {
-                        CustomMapPin(freebie: annotation.freebie!) {
-                            print("📌 Pin tapped for freebie: \(annotation.freebie!.title) (ID: \(annotation.freebie!.id ?? "nil"))")
-                            
-                            // Set selectedFreebie - this will automatically show the sheet
-                            selectedFreebie = annotation.freebie!
-                            
-                            print("📌 Set selectedFreebie to: \(annotation.freebie!.title) - sheet will show automatically")
-                        }
-                    }
-                }
-            }
-            .mapStyle(.standard(elevation: .realistic))
-            .ignoresSafeArea()
-            .mapControlVisibility(.hidden)
-                .onAppear {
-                    print("🗺️ MapTabView appeared - starting location setup")
-                    observeCoordinateUpdates()
-                    observeDeniedLocationAccess()
-                    
-                    // Request location permission first
-                    locationService.requestLocationPermission()
-                    
-                    // Start location updates
-                    locationService.startLocationUpdates()
-                    
-                    // Fetch freebies
-                    firestoreService.fetchFreebies()
-                    
-                    // Update annotations
-                    updateAnnotations()
-                    
-                    // Check if we already have a location
-                    if let userLocation = locationService.currentLocation {
-                        print("📍 Found existing location: \(userLocation.coordinate.latitude), \(userLocation.coordinate.longitude)")
-                        centerMapOnLocation(userLocation.coordinate)
-                    } else {
-                        print("📍 No existing location available, waiting for location updates...")
-                        
-                        // Try to get location after a short delay
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                            if let userLocation = locationService.currentLocation {
-                                print("📍 Found delayed location: \(userLocation.coordinate.latitude), \(userLocation.coordinate.longitude)")
-                                centerMapOnLocation(userLocation.coordinate)
-                            }
-                        }
-                    }
-                }
-            .onChange(of: firestoreService.freebies) { oldValue, newValue in
-                print("🗺️ MapTabView: Freebies updated from \(oldValue.count) to \(newValue.count)")
-                for (index, freebie) in newValue.enumerated() {
-                    print("   \(index + 1). '\(freebie.title)' at \(freebie.location.latitude), \(freebie.location.longitude)")
-                }
-                updateAnnotations()
-            }
-            .onChange(of: searchText) { oldValue, newValue in
-                updateAnnotations()
-            }
-            .onChange(of: selectedCategory) { oldValue, newValue in
-                updateAnnotations()
-            }
-            .onChange(of: searchRadius) { oldValue, newValue in
-                updateAnnotations()
-            }
-            .onChange(of: themeManager.isPoopMode) { oldValue, newValue in
-                updateAnnotations()
-            }
+            mapView
             
             // Minimal glassmorphism header
             VStack(spacing: 0) {
@@ -486,8 +480,6 @@ struct MapTabView: View {
                         
                         // Poop mode toggle with emoji
                         Button(action: {
-                            let wasInPoopMode = themeManager.isPoopMode
-                            
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                                 themeManager.togglePoopMode()
                                 
