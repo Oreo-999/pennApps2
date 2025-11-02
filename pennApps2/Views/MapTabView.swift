@@ -66,7 +66,7 @@ struct MapTabView: View {
     @State private var allAnnotations: [MapAnnotationItem] = []
     @State private var showingAddFreebie = false
     @State private var searchRadius: Double = 5.0 // in miles
-    @State private var customRadiusText = ""
+    @State private var customRadiusText = "5"
     @State private var isEditingRadius = false
     @State private var tokens: Set<AnyCancellable> = []
     @StateObject private var themeManager = ThemeManager.shared
@@ -351,53 +351,50 @@ struct MapTabView: View {
                                 
                                 Spacer()
                                 
-                                if isEditingRadius {
-                                    HStack(spacing: 4) {
-                                        TextField("", text: $customRadiusText)
-                                            .keyboardType(.decimalPad)
-                                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                                            .frame(width: 80)
-                                        
-                                        Text("mi")
-                                            .font(.subheadline)
-                                            .fontWeight(.medium)
-                                            .foregroundColor(.blue)
-                                        
-                                        Button("Done") {
-                                            if let customRadius = Double(customRadiusText), customRadius >= 1 {
-                                                searchRadius = customRadius
-                                            }
-                                            customRadiusText = ""
-                                            isEditingRadius = false
-                                        }
-                                        .font(.subheadline)
-                                        .foregroundColor(.blue)
-                                    }
-                                } else {
-                                    Button(action: {
-                                        if searchRadius.truncatingRemainder(dividingBy: 1) == 0 {
-                                            customRadiusText = String(Int(searchRadius))
+                                HStack(spacing: 4) {
+                                    TextField("", text: $customRadiusText, onEditingChanged: { editing in
+                                        isEditingRadius = editing
+                                    }, onCommit: {
+                                        if let customRadius = Double(customRadiusText), customRadius >= 1 {
+                                            searchRadius = customRadius
                                         } else {
-                                            customRadiusText = String(searchRadius)
-                                        }
-                                        isEditingRadius = true
-                                    }) {
-                                        HStack(spacing: 2) {
+                                            // If invalid, set to current value
                                             if searchRadius.truncatingRemainder(dividingBy: 1) == 0 {
-                                                Text("\(Int(searchRadius))")
-                                                    .font(.subheadline)
-                                                    .fontWeight(.medium)
+                                                customRadiusText = String(Int(searchRadius))
                                             } else {
-                                                Text(String(format: "%.1f", searchRadius))
-                                                    .font(.subheadline)
-                                                    .fontWeight(.medium)
+                                                customRadiusText = String(format: "%.1f", searchRadius)
                                             }
-                                            Text("miles")
-                                                .font(.subheadline)
-                                                .fontWeight(.medium)
                                         }
-                                        .foregroundColor(.blue)
+                                        isEditingRadius = false
+                                    })
+                                    .keyboardType(.decimalPad)
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .frame(width: 80)
+                                    .onAppear {
+                                        // Set initial value when appearing
+                                        if customRadiusText.isEmpty {
+                                            if searchRadius.truncatingRemainder(dividingBy: 1) == 0 {
+                                                customRadiusText = String(Int(searchRadius))
+                                            } else {
+                                                customRadiusText = String(format: "%.1f", searchRadius)
+                                            }
+                                        }
                                     }
+                                    .onChange(of: searchRadius) { oldValue, newValue in
+                                        // Update text field when slider changes (only if not currently editing)
+                                        if !isEditingRadius {
+                                            if newValue.truncatingRemainder(dividingBy: 1) == 0 {
+                                                customRadiusText = String(Int(newValue))
+                                            } else {
+                                                customRadiusText = String(format: "%.1f", newValue)
+                                            }
+                                        }
+                                    }
+                                    
+                                    Text("mi")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.blue)
                                 }
                             }
                             
