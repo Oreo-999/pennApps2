@@ -56,7 +56,7 @@ A gamified community-driven iOS app that helps users discover and share free res
 
 ### Prerequisites
 
-- Xcode 15.0+
+- Xcode 26.0+
 - iOS 26.0+
 - Firebase project setup
 

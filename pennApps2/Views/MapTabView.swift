@@ -7,6 +7,7 @@ struct MapTabView: View {
     @StateObject private var locationService = LocationService()
     @StateObject private var firestoreService = FirestoreService()
     @StateObject private var deviceService = DeviceService()
+    @Environment(\.colorScheme) private var colorScheme
     
     @State private var region = MKCoordinateRegion(
         center: CLLocationCoordinate2D(latitude: 39.9526, longitude: -75.1652), // Philadelphia
@@ -65,7 +66,8 @@ struct MapTabView: View {
     @State private var allAnnotations: [MapAnnotationItem] = []
     @State private var showingAddFreebie = false
     @State private var searchRadius: Double = 5.0 // in miles
-    @State private var customRadiusText = ""
+    @State private var customRadiusText = "5"
+    @State private var isEditingRadius = false
     @State private var tokens: Set<AnyCancellable> = []
     @StateObject private var themeManager = ThemeManager.shared
     
@@ -139,6 +141,70 @@ struct MapTabView: View {
         allAnnotations = annotations
     }
     
+    var baseMap: some View {
+        Map(coordinateRegion: $region, annotationItems: allAnnotations) { annotation in
+            MapAnnotation(coordinate: annotation.coordinate) {
+                if annotation.isUserLocation {
+                    UserLocationMarker()
+                } else {
+                    CustomMapPin(freebie: annotation.freebie!) {
+                        print("📌 Pin tapped for freebie: \(annotation.freebie!.title) (ID: \(annotation.freebie!.id ?? "nil"))")
+                        selectedFreebie = annotation.freebie!
+                        print("📌 Set selectedFreebie to: \(annotation.freebie!.title) - sheet will show automatically")
+                    }
+                }
+            }
+        }
+        .mapStyle(.standard(elevation: .realistic))
+        .ignoresSafeArea()
+        .mapControlVisibility(.hidden)
+    }
+    
+    var mapView: some View {
+        baseMap
+            .onAppear {
+                print("🗺️ MapTabView appeared - starting location setup")
+                observeCoordinateUpdates()
+                observeDeniedLocationAccess()
+                locationService.requestLocationPermission()
+                locationService.startLocationUpdates()
+                firestoreService.fetchFreebies()
+                updateAnnotations()
+                
+                if let userLocation = locationService.currentLocation {
+                    print("📍 Found existing location: \(userLocation.coordinate.latitude), \(userLocation.coordinate.longitude)")
+                    centerMapOnLocation(userLocation.coordinate)
+                } else {
+                    print("📍 No existing location available, waiting for location updates...")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                        if let userLocation = locationService.currentLocation {
+                            print("📍 Found delayed location: \(userLocation.coordinate.latitude), \(userLocation.coordinate.longitude)")
+                            centerMapOnLocation(userLocation.coordinate)
+                        }
+                    }
+                }
+            }
+            .onChange(of: firestoreService.freebies) { _, newValue in
+                print("🗺️ MapTabView: Freebies updated to \(newValue.count)")
+                for (index, freebie) in newValue.enumerated() {
+                    print("   \(index + 1). '\(freebie.title)' at \(freebie.location.latitude), \(freebie.location.longitude)")
+                }
+                updateAnnotations()
+            }
+            .onChange(of: searchText) { _, _ in
+                updateAnnotations()
+            }
+            .onChange(of: selectedCategory) { _, _ in
+                updateAnnotations()
+            }
+            .onChange(of: searchRadius) { _, _ in
+                updateAnnotations()
+            }
+            .onChange(of: themeManager.isPoopMode) { _, _ in
+                updateAnnotations()
+            }
+    }
+    
     var body: some View {
         ZStack {
             // Poop-themed background pattern
@@ -176,77 +242,7 @@ struct MapTabView: View {
             }
             
             // Map with real data from Firestore
-            Map(coordinateRegion: $region, annotationItems: allAnnotations) { annotation in
-                MapAnnotation(coordinate: annotation.coordinate) {
-                    if annotation.isUserLocation {
-                        UserLocationMarker()
-                    } else {
-                        CustomMapPin(freebie: annotation.freebie!) {
-                            print("📌 Pin tapped for freebie: \(annotation.freebie!.title) (ID: \(annotation.freebie!.id ?? "nil"))")
-                            
-                            // Set selectedFreebie - this will automatically show the sheet
-                            selectedFreebie = annotation.freebie!
-                            
-                            print("📌 Set selectedFreebie to: \(annotation.freebie!.title) - sheet will show automatically")
-                        }
-                    }
-                }
-            }
-            .mapStyle(.standard(elevation: .realistic))
-            .ignoresSafeArea()
-            .mapControlVisibility(.hidden)
-                .onAppear {
-                    print("🗺️ MapTabView appeared - starting location setup")
-                    observeCoordinateUpdates()
-                    observeDeniedLocationAccess()
-                    
-                    // Request location permission first
-                    locationService.requestLocationPermission()
-                    
-                    // Start location updates
-                    locationService.startLocationUpdates()
-                    
-                    // Fetch freebies
-                    firestoreService.fetchFreebies()
-                    
-                    // Update annotations
-                    updateAnnotations()
-                    
-                    // Check if we already have a location
-                    if let userLocation = locationService.currentLocation {
-                        print("📍 Found existing location: \(userLocation.coordinate.latitude), \(userLocation.coordinate.longitude)")
-                        centerMapOnLocation(userLocation.coordinate)
-                    } else {
-                        print("📍 No existing location available, waiting for location updates...")
-                        
-                        // Try to get location after a short delay
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                            if let userLocation = locationService.currentLocation {
-                                print("📍 Found delayed location: \(userLocation.coordinate.latitude), \(userLocation.coordinate.longitude)")
-                                centerMapOnLocation(userLocation.coordinate)
-                            }
-                        }
-                    }
-                }
-            .onChange(of: firestoreService.freebies) { oldValue, newValue in
-                print("🗺️ MapTabView: Freebies updated from \(oldValue.count) to \(newValue.count)")
-                for (index, freebie) in newValue.enumerated() {
-                    print("   \(index + 1). '\(freebie.title)' at \(freebie.location.latitude), \(freebie.location.longitude)")
-                }
-                updateAnnotations()
-            }
-            .onChange(of: searchText) { oldValue, newValue in
-                updateAnnotations()
-            }
-            .onChange(of: selectedCategory) { oldValue, newValue in
-                updateAnnotations()
-            }
-            .onChange(of: searchRadius) { oldValue, newValue in
-                updateAnnotations()
-            }
-            .onChange(of: themeManager.isPoopMode) { oldValue, newValue in
-                updateAnnotations()
-            }
+            mapView
             
             // Minimal glassmorphism header
             VStack(spacing: 0) {
@@ -355,10 +351,51 @@ struct MapTabView: View {
                                 
                                 Spacer()
                                 
-                                Text("\(Int(searchRadius)) miles")
-                                    .font(.subheadline)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.blue)
+                                HStack(spacing: 4) {
+                                    TextField("", text: $customRadiusText, onEditingChanged: { editing in
+                                        isEditingRadius = editing
+                                    }, onCommit: {
+                                        if let customRadius = Double(customRadiusText), customRadius >= 1 {
+                                            searchRadius = customRadius
+                                        } else {
+                                            // If invalid, set to current value
+                                            if searchRadius.truncatingRemainder(dividingBy: 1) == 0 {
+                                                customRadiusText = String(Int(searchRadius))
+                                            } else {
+                                                customRadiusText = String(format: "%.1f", searchRadius)
+                                            }
+                                        }
+                                        isEditingRadius = false
+                                    })
+                                    .keyboardType(.decimalPad)
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    .frame(width: 80)
+                                    .onAppear {
+                                        // Set initial value when appearing
+                                        if customRadiusText.isEmpty {
+                                            if searchRadius.truncatingRemainder(dividingBy: 1) == 0 {
+                                                customRadiusText = String(Int(searchRadius))
+                                            } else {
+                                                customRadiusText = String(format: "%.1f", searchRadius)
+                                            }
+                                        }
+                                    }
+                                    .onChange(of: searchRadius) { oldValue, newValue in
+                                        // Update text field when slider changes (only if not currently editing)
+                                        if !isEditingRadius {
+                                            if newValue.truncatingRemainder(dividingBy: 1) == 0 {
+                                                customRadiusText = String(Int(newValue))
+                                            } else {
+                                                customRadiusText = String(format: "%.1f", newValue)
+                                            }
+                                        }
+                                    }
+                                    
+                                    Text("mi")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                        .foregroundColor(.blue)
+                                }
                             }
                             
                             HStack {
@@ -366,34 +403,15 @@ struct MapTabView: View {
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                 
-                                Slider(value: $searchRadius, in: 1...50, step: 1)
-                                    .accentColor(.blue)
+                                Slider(value: Binding(
+                                    get: { min(searchRadius, 200) },
+                                    set: { searchRadius = $0 }
+                                ), in: 1...200, step: 1)
+                                    .tint(.blue)
                                 
-                                Text("50 mi")
+                                Text("50+ mi")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
-                            }
-                        }
-                        
-                        // Custom radius input
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Custom Radius")
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                            
-                            HStack {
-                                TextField("Enter miles", text: $customRadiusText)
-                                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                                    .keyboardType(.decimalPad)
-                                
-                                Button("Apply") {
-                                    if let customRadius = Double(customRadiusText), customRadius >= 1 && customRadius <= 50 {
-                                        searchRadius = customRadius
-                                        customRadiusText = ""
-                                    }
-                                }
-                                .buttonStyle(.bordered)
-                                .disabled(customRadiusText.isEmpty)
                             }
                         }
                         
@@ -431,8 +449,8 @@ struct MapTabView: View {
                     .padding(.vertical, 20)
                     .background(
                         RoundedRectangle(cornerRadius: 20)
-                            .fill(Color.white)
-                            .shadow(color: .black.opacity(0.1), radius: 12, x: 0, y: 6)
+                            .fill(colorScheme == .dark ? Color(red: 0.18, green: 0.18, blue: 0.20) : Color(.systemBackground))
+                            .shadow(color: Color.black.opacity(0.1), radius: 12, x: 0, y: 6)
                     )
                     .transition(.move(edge: .top).combined(with: .opacity))
                 }
@@ -486,8 +504,6 @@ struct MapTabView: View {
                         
                         // Poop mode toggle with emoji
                         Button(action: {
-                            let wasInPoopMode = themeManager.isPoopMode
-                            
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                                 themeManager.togglePoopMode()
                                 
@@ -815,6 +831,7 @@ struct CategoryChip: View {
     let isSelected: Bool
     let color: Color
     let action: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         Button(action: action) {
@@ -825,13 +842,23 @@ struct CategoryChip: View {
                 Text(title)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(isSelected ? .white : .primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
             .background(
-                isSelected ? 
-                LinearGradient(colors: [color, color.opacity(0.8)], startPoint: .leading, endPoint: .trailing) :
-                LinearGradient(colors: [Color.white], startPoint: .leading, endPoint: .trailing)
+                Group {
+                    if isSelected {
+                        LinearGradient(colors: [color, color.opacity(0.8)], startPoint: .leading, endPoint: .trailing)
+                    } else {
+                        if colorScheme == .dark {
+                            LinearGradient(colors: [Color(.secondarySystemBackground)], startPoint: .leading, endPoint: .trailing)
+                        } else {
+                            LinearGradient(colors: [Color(.systemBackground)], startPoint: .leading, endPoint: .trailing)
+                        }
+                    }
+                }
             )
             .cornerRadius(20)
             .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)

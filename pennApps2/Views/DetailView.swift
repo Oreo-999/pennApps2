@@ -483,10 +483,11 @@ struct DetailView: View {
                 
                 let fetchedReviews = snapshot.documents.compactMap { doc -> Review? in
                     do {
-                        var review = try doc.data(as: Review.self)
-                        review.id = doc.documentID
+                        let review = try doc.data(as: Review.self)
                         print("📖 Successfully loaded review: \(doc.documentID) - \(review.rating) stars - '\(review.reviewText)'")
-                        return review
+                        var mutableReview = review
+                        mutableReview.id = doc.documentID
+                        return mutableReview
                     } catch {
                         print("❌ Error decoding review \(doc.documentID): \(error)")
                         print("❌ Raw document data: \(doc.data())")
